@@ -1,0 +1,2 @@
+-- Rename ADMIN to TEAM_LEADER in MemberRole enum
+ALTER TYPE "MemberRole" RENAME VALUE 'ADMIN' TO 'TEAM_LEADER';

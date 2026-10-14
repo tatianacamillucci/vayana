@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vayana API Tester</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+  h1 { font-size: 1.5rem; margin-bottom: 8px; color: #38bdf8; }
+  .subtitle { color: #64748b; margin-bottom: 20px; font-size: 0.85rem; }
+  .layout { display: flex; gap: 20px; height: calc(100vh - 100px); }
+  .sidebar { width: 280px; flex-shrink: 0; overflow-y: auto; }
+  .main { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  
+  /* Sidebar sections */
+  .section { margin-bottom: 16px; }
+  .section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #64748b; padding: 4px 8px; }
+  .endpoint { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: background 0.15s; }
+  .endpoint:hover { background: #1e293b; }
+  .endpoint.active { background: #1e293b; border-left: 2px solid #38bdf8; }
+  .method { font-size: 0.65rem; font-weight: 700; padding: 2px 6px; border-radius: 3px; min-width: 40px; text-align: center; }
+  .method.POST { background: #065f46; color: #6ee7b7; }
+  .method.GET { background: #1e3a5f; color: #7dd3fc; }
+  .method.PATCH { background: #713f12; color: #fbbf24; }
+  .method.DELETE { background: #7f1d1d; color: #fca5a5; }
+  
+  /* Auth status */
+  .auth-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #1e293b; border-radius: 8px; margin-bottom: 12px; font-size: 0.8rem; }
+  .auth-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .auth-dot.on { background: #4ade80; }
+  .auth-dot.off { background: #ef4444; }
+  
+  /* Form */
+  .form-area { background: #1e293b; border-radius: 8px; padding: 16px; }
+  .form-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .form-row { margin-bottom: 10px; }
+  .form-row label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+  .form-row input, .form-row textarea, .form-row select { width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 0.85rem; }
+  .form-row textarea { min-height: 60px; resize: vertical; font-family: monospace; }
+  .form-row input:focus, .form-row textarea:focus { outline: none; border-color: #38bdf8; }
+  .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-danger { background: #dc2626; color: white; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-secondary { background: #334155; color: #e2e8f0; }
+  .btn-secondary:hover { background: #475569; }
+  .btn-row { display: flex; gap: 8px; margin-top: 12px; }
+  
+  /* Response */
+  .response-area { flex: 1; background: #1e293b; border-radius: 8px; padding: 16px; overflow-y: auto; }
+  .response-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .status-badge { padding: 2px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+  .status-2xx { background: #065f46; color: #6ee7b7; }
+  .status-4xx { background: #7f1d1d; color: #fca5a5; }
+  .status-5xx { background: #581c87; color: #d8b4fe; }
+  pre { font-size: 0.8rem; line-height: 1.5; white-space: pre-wrap; word-break: break-all; color: #cbd5e1; }
+  
+  /* Context (saved IDs) */
+  .context-bar { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 14px; background: #1e293b; border-radius: 8px; font-size: 0.7rem; }
+  .ctx-chip { background: #334155; padding: 3px 8px; border-radius: 4px; cursor: pointer; }
+  .ctx-chip:hover { background: #475569; }
+  .ctx-chip .label { color: #64748b; }
+</style>
+</head>
+<body>
+
+<h1>Vayana API Tester</h1>
+<p class="subtitle">Phase 7 UAT — Teams, Projects, Phases</p>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="section">
+      <div class="section-title">Auth</div>
+      <div class="endpoint" onclick="loadEndpoint('register')"><span class="method POST">POST</span> /auth/register</div>
+      <div class="endpoint" onclick="loadEndpoint('login')"><span class="method POST">POST</span> /auth/login</div>
+    </div>
+    <div class="section">
+      <div class="section-title">Teams</div>
+      <div class="endpoint" onclick="loadEndpoint('createTeam')"><span class="method POST">POST</span> /teams</div>
+      <div class="endpoint" onclick="loadEndpoint('listTeams')"><span class="method GET">GET</span> /teams</div>
+      <div class="endpoint" onclick="loadEndpoint('getTeam')"><span class="method GET">GET</span> /teams/:id</div>
+      <div class="endpoint" onclick="loadEndpoint('updateTeam')"><span class="method PATCH">PATCH</span> /teams/:id</div>
+      <div class="endpoint" onclick="loadEndpoint('deleteTeam')"><span class="method DELETE">DEL</span> /teams/:id</div>
+    </div>
+    <div class="section">
+      <div class="section-title">Members</div>
+      <div class="endpoint" onclick="loadEndpoint('listMembers')"><span class="method GET">GET</span> /teams/:id/members</div>
+      <div class="endpoint" onclick="loadEndpoint('addMember')"><span class="method POST">POST</span> /teams/:id/members</div>
+      <div class="endpoint" onclick="loadEndpoint('updateMemberRole')"><span class="method PATCH">PATCH</span> ...members/:userId</div>
+      <div class="endpoint" onclick="loadEndpoint('removeMember')"><span class="method DELETE">DEL</span> ...members/:userId</div>
+      <div class="endpoint" onclick="loadEndpoint('leaveTeam')"><span class="method POST">POST</span> /teams/:id/leave</div>
+    </div>
+    <div class="section">
+      <div class="section-title">Invitations</div>
+      <div class="endpoint" onclick="loadEndpoint('createInvitation')"><span class="method POST">POST</span> ...invitations</div>
+      <div class="endpoint" onclick="loadEndpoint('listInvitations')"><span class="method GET">GET</span> ...invitations</div>
+      <div class="endpoint" onclick="loadEndpoint('getInvitation')"><span class="method GET">GET</span> /invitations/:token</div>
+      <div class="endpoint" onclick="loadEndpoint('acceptInvitation')"><span class="method POST">POST</span> .../:token/accept</div>
+      <div class="endpoint" onclick="loadEndpoint('declineInvitation')"><span class="method POST">POST</span> .../:token/decline</div>
+    </div>
+    <div class="section">
+      <div class="section-title">Projects</div>
+      <div class="endpoint" onclick="loadEndpoint('createProject')"><span class="method POST">POST</span> /projects</div>
+      <div class="endpoint" onclick="loadEndpoint('listProjects')"><span class="method GET">GET</span> /projects</div>
+      <div class="endpoint" onclick="loadEndpoint('getProject')"><span class="method GET">GET</span> /projects/:id</div>
+      <div class="endpoint" onclick="loadEndpoint('updateProject')"><span class="method PATCH">PATCH</span> /projects/:id</div>
+      <div class="endpoint" onclick="loadEndpoint('archiveProject')"><span class="method POST">POST</span> .../:id/archive</div>
+      <div class="endpoint" onclick="loadEndpoint('unarchiveProject')"><span class="method POST">POST</span> .../:id/unarchive</div>
+      <div class="endpoint" onclick="loadEndpoint('trashProject')"><span class="method DELETE">DEL</span> /projects/:id</div>
+      <div class="endpoint" onclick="loadEndpoint('restoreProject')"><span class="method POST">POST</span> .../:id/restore</div>
+    </div>
+    <div class="section">
+      <div class="section-title">Phases</div>
+      <div class="endpoint" onclick="loadEndpoint('createPhase')"><span class="method POST">POST</span> .../phases</div>
+      <div class="endpoint" onclick="loadEndpoint('listPhases')"><span class="method GET">GET</span> .../phases</div>
+      <div class="endpoint" onclick="loadEndpoint('getPhase')"><span class="method GET">GET</span> /phases/:id</div>
+      <div class="endpoint" onclick="loadEndpoint('updatePhase')"><span class="method PATCH">PATCH</span> /phases/:id</div>
+      <div class="endpoint" onclick="loadEndpoint('reorderPhase')"><span class="method PATCH">PATCH</span> /phases/:id/reorder</div>
+      <div class="endpoint" onclick="loadEndpoint('deletePhase')"><span class="method DELETE">DEL</span> /phases/:id</div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="auth-bar">
+      <div class="auth-dot off" id="authDot"></div>
+      <span id="authStatus">Non autenticato</span>
+      <button class="btn btn-secondary" onclick="loadEndpoint('login')" style="margin-left:auto; font-size:0.75rem;">Login</button>
+    </div>
+
+    <div class="context-bar" id="contextBar">
+      <span style="color:#64748b;">Saved IDs:</span>
+      <span style="color:#475569;">nessuno</span>
+    </div>
+
+    <div class="form-area" id="formArea">
+      <div class="form-title">Seleziona un endpoint dalla sidebar</div>
+    </div>
+
+    <div class="response-area" id="responseArea">
+      <div class="response-header">
+        <span style="color:#64748b;">Response</span>
+        <span class="status-badge" id="statusBadge" style="display:none;"></span>
+      </div>
+      <pre id="responseBody">In attesa...</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';  // Same origin
+const ctx = {};  // saved IDs: teamId, projectId, phaseId, userId, token
+
+function saveCtx(key, val) {
+  ctx[key] = val;
+  renderCtx();
+}
+
+function renderCtx() {
+  const bar = document.getElementById('contextBar');
+  const keys = Object.keys(ctx).filter(k => ctx[k]);
+  if (!keys.length) { bar.innerHTML = '<span style="color:#64748b;">Saved IDs:</span><span style="color:#475569;">nessuno</span>'; return; }
+  bar.innerHTML = '<span style="color:#64748b;">Saved IDs (click to copy):</span>' + 
+    keys.map(k => `<span class="ctx-chip" onclick="navigator.clipboard.writeText('${ctx[k]}')"><span class="label">${k}:</span> ${ctx[k].substring(0,8)}...</span>`).join('');
+}
+
+function setAuth(on, label) {
+  document.getElementById('authDot').className = 'auth-dot ' + (on ? 'on' : 'off');
+  document.getElementById('authStatus').textContent = label || (on ? 'Autenticato' : 'Non autenticato');
+}
+
+async function send(method, path, body) {
+  const opts = { method, credentials: 'include', headers: {} };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  try {
+    const r = await fetch(API + path, opts);
+    const status = r.status;
+    let data;
+    try { data = await r.json(); } catch { data = await r.text(); }
+
+    // Show response
+    const badge = document.getElementById('statusBadge');
+    badge.style.display = '';
+    badge.textContent = status;
+    badge.className = 'status-badge ' + (status < 300 ? 'status-2xx' : status < 500 ? 'status-4xx' : 'status-5xx');
+    document.getElementById('responseBody').textContent = JSON.stringify(data, null, 2);
+
+    return { status, data };
+  } catch (e) {
+    document.getElementById('responseBody').textContent = 'Error: ' + e.message;
+    return { status: 0, data: null };
+  }
+}
+
+// --- Endpoint definitions ---
+const endpoints = {
+  register: {
+    title: 'Register', method: 'POST', path: '/auth/register',
+    fields: [
+      { name: 'firstName', label: 'First Name', value: 'Test' },
+      { name: 'lastName', label: 'Last Name', value: 'User' },
+      { name: 'email', label: 'Email', value: 'test@example.com' },
+      { name: 'password', label: 'Password (min 8, uppercase+lowercase+number)', value: 'Test1234', type: 'password' },
+    ],
+    onSuccess: async (d) => { setAuth(true, 'Registrato'); await autoListTeams(); }
+  },
+  login: {
+    title: 'Login', method: 'POST', path: '/auth/login',
+    fields: [
+      { name: 'email', label: 'Email', value: 'test@example.com' },
+      { name: 'password', label: 'Password', value: 'Test1234', type: 'password' },
+    ],
+    onSuccess: async (d) => { setAuth(true, 'Logged in'); await autoListTeams(); }
+  },
+  createTeam: {
+    title: 'Create Team', method: 'POST', path: '/teams',
+    fields: [
+      { name: 'name', label: 'Team Name', value: 'My Team' },
+      { name: 'description', label: 'Description', value: 'A test team' },
+    ],
+    onSuccess: (d) => { if(d.id) saveCtx('teamId', d.id); }
+  },
+  listTeams: {
+    title: 'List Teams', method: 'GET', path: '/teams',
+    fields: [],
+    onSuccess: (d) => { if(Array.isArray(d) && d.length) saveCtx('teamId', d[0].id); }
+  },
+  getTeam: {
+    title: 'Get Team', method: 'GET', path: () => `/teams/${ctx.teamId || ''}`,
+    fields: [{ name: 'id', label: 'Team ID', get: () => ctx.teamId }],
+    pathFromFields: (f) => `/teams/${f.id}`
+  },
+  updateTeam: {
+    title: 'Update Team', method: 'PATCH', path: () => `/teams/${ctx.teamId || ''}`,
+    fields: [
+      { name: 'id', label: 'Team ID', get: () => ctx.teamId, exclude: true },
+      { name: 'name', label: 'New Name', value: 'Updated Team' },
+    ],
+    pathFromFields: (f) => `/teams/${f.id}`
+  },
+  deleteTeam: {
+    title: 'Delete Team', method: 'DELETE', path: () => `/teams/${ctx.teamId || ''}`,
+    fields: [{ name: 'id', label: 'Team ID', get: () => ctx.teamId, exclude: true }],
+    pathFromFields: (f) => `/teams/${f.id}`
+  },
+  listMembers: {
+    title: 'List Members', method: 'GET', path: () => `/teams/${ctx.teamId || ''}/members`,
+    fields: [{ name: 'teamId', label: 'Team ID', get: () => ctx.teamId, exclude: true }],
+    pathFromFields: (f) => `/teams/${f.teamId}/members`
+  },
+  addMember: {
+    title: 'Add Member', method: 'POST', path: () => `/teams/${ctx.teamId || ''}/members`,
+    fields: [
+      { name: 'teamId', label: 'Team ID', get: () => ctx.teamId, exclude: true },
+      { name: 'userId', label: 'User ID' },
+      { name: 'role', label: 'Role', value: 'MEMBER', type: 'select', options: ['MEMBER', 'TEAM_LEADER', 'OWNER'] },
+    ],
+    pathFromFields: (f) => `/teams/${f.teamId}/members`
+  },
+  updateMemberRole: {
+    title: 'Update Member Role', method: 'PATCH',
+    fields: [
+      { name: 'teamId', label: 'Team ID', get: () => ctx.teamId, exclude: true },
+      { name: 'userId', label: 'Member User ID', exclude: true },
+      { name: 'role', label: 'New Role', value: 'TEAM_LEADER', type: 'select', options: ['MEMBER', 'TEAM_LEADER', 'OWNER'] },
+    ],
+    pathFromFields: (f) => `/teams/${f.teamId}/members/${f.userId}`
+  },
+  removeMember: {
+    title: 'Remove Member', method: 'DELETE',
+    fields: [
+      { name: 'teamId', label: 'Team ID', get: () => ctx.teamId, exclude: true },
+      { name: 'userId', label: 'Member User ID', exclude: true },
+    ],
+    pathFromFields: (f) => `/teams/${f.teamId}/members/${f.userId}`
+  },
+  leaveTeam: {
+    title: 'Leave Team', method: 'POST',
+    fields: [{ name: 'teamId', label: 'Team ID', get: () => ctx.teamId, exclude: true }],
+    pathFromFields: (f) => `/teams/${f.teamId}/leave`
+  },
+  createInvitation: {
+    title: 'Create Invitation', method: 'POST',
+    fields: [
+      { name: 'teamId', label: 'Team ID', get: () => ctx.teamId, exclude: true },
+      { name: 'email', label: 'Email to invite', value: 'invite@example.com' },
+      { name: 'role', label: 'Role', value: 'MEMBER', type: 'select', options: ['MEMBER', 'TEAM_LEADER'] },
+    ],
+    pathFromFields: (f) => `/teams/${f.teamId}/invitations`
+  },
+  listInvitations: {
+    title: 'List Invitations', method: 'GET',
+    fields: [{ name: 'teamId', label: 'Team ID', get: () => ctx.teamId, exclude: true }],
+    pathFromFields: (f) => `/teams/${f.teamId}/invitations`
+  },
+  getInvitation: {
+    title: 'Get Invitation (public)', method: 'GET',
+    fields: [{ name: 'token', label: 'Invitation Token', get: () => ctx.invToken, exclude: true }],
+    pathFromFields: (f) => `/invitations/${f.token}`
+  },
+  acceptInvitation: {
+    title: 'Accept Invitation', method: 'POST',
+    fields: [{ name: 'token', label: 'Invitation Token', get: () => ctx.invToken, exclude: true }],
+    pathFromFields: (f) => `/invitations/${f.token}/accept`
+  },
+  declineInvitation: {
+    title: 'Decline Invitation', method: 'POST',
+    fields: [{ name: 'token', label: 'Invitation Token', get: () => ctx.invToken, exclude: true }],
+    pathFromFields: (f) => `/invitations/${f.token}/decline`
+  },
+  createProject: {
+    title: 'Create Project', method: 'POST', path: '/projects',
+    fields: [
+      { name: 'name', label: 'Project Name', value: 'My Project' },
+      { name: 'description', label: 'Description', value: '' },
+      { name: 'organizationId', label: 'Team ID (org)', get: () => ctx.teamId },
+    ],
+    onSuccess: (d) => { if(d.id) saveCtx('projectId', d.id); }
+  },
+  listProjects: {
+    title: 'List Projects', method: 'GET', path: '/projects',
+    fields: [
+      { name: 'page', label: 'Page', value: '1', exclude: true },
+      { name: 'limit', label: 'Limit', value: '20', exclude: true },
+    ],
+    pathFromFields: (f) => `/projects?page=${f.page}&limit=${f.limit}`,
+    onSuccess: (d) => { const items = d.data || d; if(Array.isArray(items) && items.length) saveCtx('projectId', items[0].id); }
+  },
+  getProject: {
+    title: 'Get Project', method: 'GET',
+    fields: [{ name: 'id', label: 'Project ID', get: () => ctx.projectId, exclude: true }],
+    pathFromFields: (f) => `/projects/${f.id}`
+  },
+  updateProject: {
+    title: 'Update Project', method: 'PATCH',
+    fields: [
+      { name: 'id', label: 'Project ID', get: () => ctx.projectId, exclude: true },
+      { name: 'name', label: 'New Name', value: 'Updated Project' },
+    ],
+    pathFromFields: (f) => `/projects/${f.id}`
+  },
+  archiveProject: {
+    title: 'Archive Project', method: 'POST',
+    fields: [{ name: 'id', label: 'Project ID', get: () => ctx.projectId, exclude: true }],
+    pathFromFields: (f) => `/projects/${f.id}/archive`
+  },
+  unarchiveProject: {
+    title: 'Unarchive Project', method: 'POST',
+    fields: [{ name: 'id', label: 'Project ID', get: () => ctx.projectId, exclude: true }],
+    pathFromFields: (f) => `/projects/${f.id}/unarchive`
+  },
+  trashProject: {
+    title: 'Trash Project (Soft Delete)', method: 'DELETE',
+    fields: [{ name: 'id', label: 'Project ID', get: () => ctx.projectId, exclude: true }],
+    pathFromFields: (f) => `/projects/${f.id}`
+  },
+  restoreProject: {
+    title: 'Restore Project', method: 'POST',
+    fields: [{ name: 'id', label: 'Project ID', get: () => ctx.projectId, exclude: true }],
+    pathFromFields: (f) => `/projects/${f.id}/restore`
+  },
+  createPhase: {
+    title: 'Create Phase', method: 'POST',
+    fields: [
+      { name: 'projectId', label: 'Project ID', get: () => ctx.projectId, exclude: true },
+      { name: 'name', label: 'Phase Name', value: 'To Do' },
+      { name: 'description', label: 'Description', value: '' },
+    ],
+    pathFromFields: (f) => `/projects/${f.projectId}/phases`,
+    onSuccess: (d) => { if(d.id) saveCtx('phaseId', d.id); }
+  },
+  listPhases: {
+    title: 'List Phases', method: 'GET',
+    fields: [{ name: 'projectId', label: 'Project ID', get: () => ctx.projectId, exclude: true }],
+    pathFromFields: (f) => `/projects/${f.projectId}/phases`,
+    onSuccess: (d) => { if(Array.isArray(d) && d.length) saveCtx('phaseId', d[0].id); }
+  },
+  getPhase: {
+    title: 'Get Phase', method: 'GET',
+    fields: [{ name: 'id', label: 'Phase ID', get: () => ctx.phaseId, exclude: true }],
+    pathFromFields: (f) => `/phases/${f.id}`
+  },
+  updatePhase: {
+    title: 'Update Phase', method: 'PATCH',
+    fields: [
+      { name: 'id', label: 'Phase ID', get: () => ctx.phaseId, exclude: true },
+      { name: 'name', label: 'New Name', value: 'In Progress' },
+    ],
+    pathFromFields: (f) => `/phases/${f.id}`
+  },
+  reorderPhase: {
+    title: 'Reorder Phase', method: 'PATCH',
+    fields: [
+      { name: 'id', label: 'Phase ID', get: () => ctx.phaseId, exclude: true },
+      { name: 'afterId', label: 'After Phase ID (optional)', value: '' },
+      { name: 'beforeId', label: 'Before Phase ID (optional)', value: '' },
+    ],
+    pathFromFields: (f) => `/phases/${f.id}/reorder`
+  },
+  deletePhase: {
+    title: 'Delete Phase', method: 'DELETE',
+    fields: [{ name: 'id', label: 'Phase ID', get: () => ctx.phaseId, exclude: true }],
+    pathFromFields: (f) => `/phases/${f.id}`
+  },
+};
+
+function loadEndpoint(key) {
+  const ep = endpoints[key];
+  // Highlight
+  document.querySelectorAll('.endpoint').forEach(e => e.classList.remove('active'));
+  event.currentTarget?.classList.add('active');
+
+  const form = document.getElementById('formArea');
+  const methodClass = ep.method;
+
+  let fieldsHtml = ep.fields.map(f => {
+    const val = f.get ? (f.get() || '') : (f.value || '');
+    if (f.type === 'select') {
+      const opts = f.options.map(o => `<option value="${o}" ${o===val?'selected':''}>${o}</option>`).join('');
+      return `<div class="form-row"><label>${f.label}</label><select id="f_${f.name}">${opts}</select></div>`;
+    }
+    return `<div class="form-row"><label>${f.label}</label><input id="f_${f.name}" type="${f.type||'text'}" value="${val}"></div>`;
+  }).join('');
+
+  form.innerHTML = `
+    <div class="form-title"><span class="method ${methodClass}">${ep.method}</span> ${ep.title}</div>
+    ${fieldsHtml}
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="execEndpoint('${key}')">Invia</button>
+    </div>
+  `;
+}
+
+async function execEndpoint(key) {
+  const ep = endpoints[key];
+  // Collect field values
+  const vals = {};
+  ep.fields.forEach(f => {
+    const el = document.getElementById('f_' + f.name);
+    if (el) vals[f.name] = el.value;
+  });
+
+  // Build path
+  let path = ep.pathFromFields ? ep.pathFromFields(vals) : (typeof ep.path === 'function' ? ep.path() : ep.path);
+
+  // Build body (exclude path params)
+  let body = undefined;
+  if (['POST', 'PATCH', 'PUT'].includes(ep.method)) {
+    body = {};
+    ep.fields.forEach(f => {
+      if (!f.exclude && vals[f.name] !== undefined && vals[f.name] !== '') {
+        body[f.name] = vals[f.name];
+      }
+    });
+    if (Object.keys(body).length === 0) body = undefined;
+  }
+
+  const { status, data } = await send(ep.method, path, body);
+
+  if (status >= 200 && status < 300 && ep.onSuccess) {
+    ep.onSuccess(data);
+  }
+}
+
+// Check auth on load
+async function autoListTeams() {
+  try {
+    const r = await fetch('/teams', { credentials: 'include' });
+    if (r.ok) {
+      const teams = await r.json();
+      setAuth(true, `Autenticato (${teams.length} team)`);
+      if (Array.isArray(teams) && teams.length) {
+        // Save the first non-Personal team, or fall back to Personal
+        const nonPersonal = teams.find(t => t.name !== 'Personal');
+        saveCtx('teamId', (nonPersonal || teams[0]).id);
+      }
+    }
+  } catch {}
+}
+(async () => { await autoListTeams(); })();
+</script>
+</body>
+</html>

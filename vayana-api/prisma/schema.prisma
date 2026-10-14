@@ -1,0 +1,674 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  firstName    String?  @map("first_name")
+  lastName     String?  @map("last_name")
+  jobTitle     String?  @map("job_title")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  refreshTokens      RefreshToken[]
+  passwordResets      PasswordReset[]
+  memberships        OrganizationMember[]
+  projects           Project[]          @relation("ProjectCreatedBy")
+  tasks              Task[]             @relation("TaskCreatedBy")
+  assignments        TaskAssignment[]
+  invitations        TeamInvitation[]
+  projectMemberships ProjectMember[]
+  attachments        Attachment[]       @relation("AttachmentUploadedBy")
+  stories            Story[]            @relation("StoryAuthor")
+  taskFollows        TaskFollower[]
+  portfolios         Portfolio[]        @relation("PortfolioOwner")
+  notifications      Notification[]
+  portfolioMemberships PortfolioMember[]
+  webhookEndpoints   WebhookEndpoint[]
+  taskSearchViews    TaskSearchView[]
+
+  @@map("users")
+}
+
+model Organization {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  invitePolicy String   @default("OWNER_ONLY") @map("invite_policy")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  members     OrganizationMember[]
+  projects    Project[]
+  invitations TeamInvitation[]
+  templates   ProjectTemplate[]
+  portfolios  Portfolio[]
+  webhookEndpoints WebhookEndpoint[]
+  webhookEvents WebhookEvent[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String     @id @default(uuid())
+  userId         String     @map("user_id")
+  organizationId String     @map("organization_id")
+  role           MemberRole @default(MEMBER)
+  createdAt      DateTime   @default(now()) @map("created_at")
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@map("organization_members")
+}
+
+enum MemberRole {
+  OWNER
+  TEAM_LEADER
+  MEMBER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+  COMPLETED
+}
+
+enum ProjectVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskAssigneeRole {
+  ASSIGNEE
+  RESPONSIBLE
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+}
+
+enum DependencyType {
+  BLOCKS
+}
+
+enum WebhookEventType {
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  PROJECT_CREATED
+  PROJECT_UPDATED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  userId     String   @map("user_id")
+  familyId   String   @map("family_id")
+  deviceInfo String?  @map("device_info")
+  revoked    Boolean  @default(false)
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_resets")
+}
+
+// === PROJECTS ===
+
+model Project {
+  id             String            @id @default(uuid())
+  organizationId String            @map("organization_id")
+  name           String
+  description    String?
+  color          String?
+  icon           String?
+  thumbnail      String?
+  status         ProjectStatus     @default(ACTIVE)
+  visibility     ProjectVisibility @default(PUBLIC)
+  startDate      DateTime?         @map("start_date")
+  endDate        DateTime?         @map("end_date")
+  dueDate        DateTime?         @map("due_date")
+  progress       Float             @default(0)
+  archivedAt     DateTime?         @map("archived_at")
+  deletedAt      DateTime?         @map("deleted_at")
+  createdById    String            @map("created_by_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User              @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  phases         Phase[]
+  tasks          Task[]            @relation("PrimaryProject")
+  taskLinks      TaskProjectLink[]
+  projectMembers ProjectMember[]
+  tags           Tag[]
+  sections       Section[]
+  customFields   CustomField[]
+  portfolioLinks PortfolioProject[]
+  notifications  Notification[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id             String   @id @default(uuid())
+  projectId      String   @map("project_id")
+  userId         String   @map("user_id")
+  organizationId String   @map("organization_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model ProjectTemplate {
+  id             String    @id @default(uuid())
+  organizationId String?   @map("organization_id")
+  name           String
+  description    String?
+  isSystem       Boolean   @default(false) @map("is_system")
+  config         Json
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("project_templates")
+}
+
+// === PHASES ===
+
+model Phase {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  projectId      String    @map("project_id")
+  name           String
+  description    String?
+  position       Float     @default(1.0)
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([projectId])
+  @@index([organizationId])
+  @@index([position])
+  @@map("phases")
+}
+
+// === TASKS ===
+
+model Task {
+  id             String       @id @default(uuid())
+  organizationId String       @map("organization_id")
+  projectId      String?      @map("project_id")
+  phaseId        String?      @map("phase_id")
+  sectionId      String?      @map("section_id")
+  parentTaskId   String?      @map("parent_task_id")
+  title          String
+  description    String?
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(NONE)
+  position       Float        @default(1.0)
+  progress       Float        @default(0)
+  startDate      DateTime?    @map("start_date")
+  dueDate        DateTime?    @map("due_date")
+  estimatedTime  Float?       @map("estimated_time")
+  actualTime     Float?       @map("actual_time")
+  deletedAt      DateTime?    @map("deleted_at")
+  createdById    String       @map("created_by_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  project           Project?           @relation("PrimaryProject", fields: [projectId], references: [id])
+  phase             Phase?             @relation(fields: [phaseId], references: [id], onDelete: SetNull)
+  section           Section?           @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  parentTask        Task?              @relation("TaskSubtasks", fields: [parentTaskId], references: [id])
+  subtasks          Task[]             @relation("TaskSubtasks")
+  createdBy         User               @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  assignments       TaskAssignment[]
+  linkedProjects    TaskProjectLink[]
+  tags              TaskTag[]
+  attachments       Attachment[]
+  stories           Story[]
+  customFieldValues CustomFieldValue[]
+  followers         TaskFollower[]
+  notifications     Notification[]
+  blockingDependencies TaskDependency[] @relation("DependencySource")
+  blockedByDependencies TaskDependency[] @relation("DependencyTarget")
+
+  @@index([projectId])
+  @@index([phaseId])
+  @@index([sectionId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([priority])
+  @@index([parentTaskId])
+  @@index([position])
+  @@index([deletedAt])
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id        String           @id @default(uuid())
+  taskId    String           @map("task_id")
+  userId    String           @map("user_id")
+  role      TaskAssigneeRole @default(ASSIGNEE)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@map("task_assignments")
+}
+
+model TaskProjectLink {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  projectId String   @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, projectId])
+  @@map("task_project_links")
+}
+
+// === PHASE 8 ENUMS ===
+
+enum StoryType {
+  COMMENT
+  ACTIVITY
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  MULTI_SELECT
+  CHECKBOX
+  URL
+}
+
+// === PHASE 8 MODELS ===
+
+model Tag {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  projectId      String   @map("project_id")
+  name           String
+  color          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   TaskTag[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([organizationId])
+  @@map("tags")
+}
+
+model TaskTag {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, tagId])
+  @@map("task_tags")
+}
+
+model Section {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  projectId      String    @map("project_id")
+  name           String
+  position       Float     @default(1.0)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@index([projectId])
+  @@index([organizationId])
+  @@index([position])
+  @@map("sections")
+}
+
+model Attachment {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  taskId         String   @map("task_id")
+  filename       String
+  originalName   String   @map("original_name")
+  mimeType       String   @map("mime_type")
+  size           Int
+  storagePath    String   @map("storage_path")
+  uploadedById   String   @map("uploaded_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([taskId])
+  @@index([organizationId])
+  @@map("attachments")
+}
+
+model Story {
+  id             String    @id @default(uuid())
+  organizationId String    @map("organization_id")
+  taskId         String    @map("task_id")
+  authorId       String?   @map("author_id")
+  type           StoryType @default(COMMENT)
+  content        String
+  editedAt       DateTime? @map("edited_at")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  task   Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User? @relation("StoryAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([organizationId])
+  @@index([type])
+  @@index([deletedAt])
+  @@map("stories")
+}
+
+model CustomField {
+  id             String          @id @default(uuid())
+  organizationId String          @map("organization_id")
+  projectId      String          @map("project_id")
+  name           String
+  type           CustomFieldType
+  options        Json?
+  position       Int             @default(0)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  project Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  values  CustomFieldValue[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@index([organizationId])
+  @@map("custom_fields")
+}
+
+model CustomFieldValue {
+  id            String   @id @default(uuid())
+  customFieldId String   @map("custom_field_id")
+  taskId        String   @map("task_id")
+  value         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  customField CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  task        Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([customFieldId, taskId])
+  @@index([taskId])
+  @@map("custom_field_values")
+}
+
+model TaskFollower {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@map("task_followers")
+}
+
+model Portfolio {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  description    String?
+  color          String?
+  customFields   Json?    @map("custom_fields")
+  ownerId        String   @map("owner_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner        User              @relation("PortfolioOwner", fields: [ownerId], references: [id])
+  projects     PortfolioProject[]
+  members      PortfolioMember[]
+
+  @@index([organizationId])
+  @@map("portfolios")
+}
+
+model PortfolioProject {
+  id          String   @id @default(uuid())
+  portfolioId String   @map("portfolio_id")
+  projectId   String   @map("project_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, projectId])
+  @@index([portfolioId])
+  @@map("portfolio_projects")
+}
+
+// === INVITATIONS ===
+
+model TeamInvitation {
+  id             String           @id @default(uuid())
+  organizationId String           @map("organization_id")
+  email          String
+  token          String           @unique
+  role           MemberRole       @default(MEMBER)
+  invitedById    String           @map("invited_by_id")
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime         @map("expires_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation(fields: [invitedById], references: [id])
+
+  @@unique([organizationId, email])
+  @@index([token])
+  @@index([organizationId])
+  @@map("team_invitations")
+}
+
+model Notification {
+  id             String           @id @default(uuid())
+  organizationId String           @map("organization_id")
+  userId         String           @map("user_id")
+  type           NotificationType
+  title          String
+  body           String?
+  taskId         String?          @map("task_id")
+  projectId      String?          @map("project_id")
+  readAt         DateTime?        @map("read_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task    Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([readAt])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model TaskDependency {
+  id              String         @id @default(uuid())
+  organizationId  String         @map("organization_id")
+  taskId          String         @map("task_id")
+  dependsOnTaskId String         @map("depends_on_task_id")
+  type            DependencyType @default(BLOCKS)
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  task          Task @relation("DependencySource", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnTask Task @relation("DependencyTarget", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([organizationId])
+  @@index([taskId])
+  @@index([dependsOnTaskId])
+  @@map("task_dependencies")
+}
+
+model PortfolioMember {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  portfolioId    String   @map("portfolio_id")
+  userId         String   @map("user_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, userId])
+  @@index([organizationId])
+  @@index([portfolioId])
+  @@index([userId])
+  @@map("portfolio_members")
+}
+
+model WebhookEndpoint {
+  id             String            @id @default(uuid())
+  organizationId String            @map("organization_id")
+  name           String
+  targetUrl      String            @map("target_url")
+  secret         String?
+  isActive       Boolean           @default(true) @map("is_active")
+  eventTypes     WebhookEventType[]
+  createdById    String            @map("created_by_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  events       WebhookEvent[]
+
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("webhook_endpoints")
+}
+
+model WebhookEvent {
+  id             String                @id @default(uuid())
+  organizationId String                @map("organization_id")
+  endpointId     String?               @map("endpoint_id")
+  eventType      WebhookEventType      @map("event_type")
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  deliveredAt    DateTime?             @map("delivered_at")
+  errorMessage   String?               @map("error_message")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  endpoint     WebhookEndpoint? @relation(fields: [endpointId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([endpointId])
+  @@index([eventType])
+  @@index([status])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
+
+model TaskSearchView {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  name           String
+  filters        Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("task_search_views")
+}

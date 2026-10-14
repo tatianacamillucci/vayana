@@ -1,0 +1,18 @@
+name: Deploy to Production
+
+on:
+  push:
+    # Deploy only when changes land on master (merge/push)
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: <indirizzo-server>
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: /home/vayana/vayana/deploy.sh
